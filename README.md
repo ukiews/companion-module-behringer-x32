@@ -13,6 +13,7 @@ While developing the module, by using `yarn dev` the compiler will be run in wat
 ### Next
 
 - Add relative input trim and headamp gain actions
+- Identify the custom Companion build as `4.0.4-incremental-gain.1`
 
 ### v4.0
 
