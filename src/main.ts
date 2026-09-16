@@ -45,6 +45,8 @@ export const UpgradeScripts: CompanionStaticUpgradeScript<X32Config>[] = [
 	upgradeSetFadeDurationDefaults, // 4.0.3
 ]
 
+export const HEADAMP_REFRESH_INTERVAL_MS = 3000
+
 /**
  * Companion instance class for the Behringer X32 Mixers.
  */
@@ -64,6 +66,7 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 	/** subscribe interval, we need to resubscribe atleast every 10 seconds to keep the subscription going
 	 * we are using 5 seconds to be safe */
 	private subscribeInterval: NodeJS.Timeout | undefined
+	private headampRefreshInterval: NodeJS.Timeout | undefined
 	private channelMeterSubscriptionActive = false
 
 	private readonly debounceUpdateCompanionBits: () => void
@@ -224,6 +227,10 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 			clearInterval(this.subscribeInterval)
 			this.subscribeInterval = undefined
 		}
+		if (this.headampRefreshInterval) {
+			clearInterval(this.headampRefreshInterval)
+			this.headampRefreshInterval = undefined
+		}
 		X32DeviceDetectorInstance.unsubscribe(this.id)
 
 		this.transitions.stopAll()
@@ -316,6 +323,10 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 			clearInterval(this.syncInterval)
 			this.syncInterval = undefined
 		}
+		if (this.headampRefreshInterval) {
+			clearInterval(this.headampRefreshInterval)
+			this.headampRefreshInterval = undefined
+		}
 
 		if (this.osc) {
 			try {
@@ -350,6 +361,10 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 				clearInterval(this.subscribeInterval)
 				this.subscribeInterval = undefined
 			}
+			if (this.headampRefreshInterval) {
+				clearInterval(this.headampRefreshInterval)
+				this.headampRefreshInterval = undefined
+			}
 
 			if (!this.reconnectTimer) {
 				this.reconnectTimer = setTimeout(() => {
@@ -369,14 +384,17 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 				this.pulse()
 			}, 1500)
 			this.channelMeterSubscriptionActive = false
+			this.requestQueue.clear()
+			this.inFlightRequests = {}
 
 			this.subscribeForUpdates()
 			this.subscribeInterval = setInterval(() => {
 				this.subscribeForUpdates()
 			}, 5000)
-
-			this.requestQueue.clear()
-			this.inFlightRequests = {}
+			this.refreshHeadampGainVariables()
+			this.headampRefreshInterval = setInterval(() => {
+				this.refreshHeadampGainVariables()
+			}, HEADAMP_REFRESH_INTERVAL_MS)
 
 			const doSync = (): void => {
 				if (this.osc) {
@@ -407,6 +425,10 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 			if (this.subscribeInterval) {
 				clearInterval(this.subscribeInterval)
 				this.subscribeInterval = undefined
+			}
+			if (this.headampRefreshInterval) {
+				clearInterval(this.headampRefreshInterval)
+				this.headampRefreshInterval = undefined
 			}
 		})
 
@@ -473,7 +495,9 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 		}
 
 		this.updateChannelMeterSubscription()
+	}
 
+	private refreshHeadampGainVariables(): void {
 		// /xremote normally reports mixer-side gain changes immediately. Polling is a low-cost fallback for missed
 		// notifications and guarantees fresh headamp values after the OSC socket reconnects.
 		for (const path of LOCAL_HEADAMP_GAIN_PATHS) this.queueEnsureLoaded(path, true)
