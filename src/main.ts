@@ -25,7 +25,7 @@ import {
 	OSCSomeArguments,
 } from '@companion-module/base'
 import type { InstanceBaseExt, X32Types } from './util.js'
-import { STORED_CHANNEL_ID, VariableDefinitions } from './variables/main.js'
+import { LOCAL_HEADAMP_GAIN_PATHS, STORED_CHANNEL_ID, VariableDefinitions } from './variables/main.js'
 import { GetCompanionVariableDefinitions, GetCompanionVariableValues } from './variables/init.js'
 import {
 	CHANNEL_METER_COUNT,
@@ -473,6 +473,10 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 		}
 
 		this.updateChannelMeterSubscription()
+
+		// /xremote normally reports mixer-side gain changes immediately. Polling is a low-cost fallback for missed
+		// notifications and guarantees fresh headamp values after the OSC socket reconnects.
+		for (const path of LOCAL_HEADAMP_GAIN_PATHS) this.queueEnsureLoaded(path, true)
 	}
 
 	private updateChannelMeterSubscription = (): void => {
@@ -514,7 +518,7 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 		for (const definition of Object.values(VariableDefinitions)) {
 			if (definition.oscPath) this.queueEnsureLoaded(definition.oscPath)
 			if (definition.additionalPaths) {
-				definition.additionalPaths.forEach(this.queueEnsureLoaded)
+				definition.additionalPaths.forEach((path) => this.queueEnsureLoaded(path))
 			}
 		}
 	}
@@ -530,7 +534,7 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 		})
 	}
 
-	private queueEnsureLoaded = (path: string | undefined): void => {
+	private queueEnsureLoaded = (path: string | undefined, force = false): void => {
 		if (!path) return
 
 		this.requestQueue
@@ -540,7 +544,7 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 					return
 				}
 
-				if (this.x32State.get(path)) {
+				if (!force && this.x32State.get(path)) {
 					this.log('debug', `Ignoring request "${path}" as data is already loaded`)
 					return
 				}

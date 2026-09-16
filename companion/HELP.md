@@ -38,4 +38,5 @@ configurable per feedback.
 
 Live physical headamp gain is available in dB through Companion variables for Local inputs 1-8. Variable names
 run from `headamp_local_01_gain` through `headamp_local_08_gain`. These variables represent physical preamps and
-do not automatically follow channel input routing.
+do not automatically follow channel input routing. Mixer-side changes normally update immediately through OSC change
+notifications; the module also refreshes all eight values every five seconds and after reconnecting.

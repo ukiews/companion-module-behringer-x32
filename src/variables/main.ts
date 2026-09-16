@@ -190,11 +190,16 @@ for (const target of allSources) {
 	}
 }
 
-for (let input = 1; input <= 8; input++) {
+export const LOCAL_HEADAMP_GAIN_PATHS = Array.from(
+	{ length: 8 },
+	(_value, index) => `/headamp/${padNumber(index, 3)}/gain`,
+)
+
+for (let input = 1; input <= LOCAL_HEADAMP_GAIN_PATHS.length; input++) {
 	const variableId = `headamp_local_${padNumber(input)}_gain` as const
 	VariableDefinitions[variableId] = {
 		name: `Headamp gain: Local ${input}`,
-		oscPath: `/headamp/${padNumber(input - 1, 3)}/gain`,
+		oscPath: LOCAL_HEADAMP_GAIN_PATHS[input - 1],
 		getValue: (args) => {
 			const normalizedGain = args && args[0]?.type === 'f' ? args[0].value : NaN
 			if (isNaN(normalizedGain)) return undefined
