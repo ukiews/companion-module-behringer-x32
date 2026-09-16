@@ -27,6 +27,12 @@ import {
 import type { InstanceBaseExt, X32Types } from './util.js'
 import { STORED_CHANNEL_ID, VariableDefinitions } from './variables/main.js'
 import { GetCompanionVariableDefinitions, GetCompanionVariableValues } from './variables/init.js'
+import {
+	CHANNEL_METER_COUNT,
+	CHANNEL_METERS_ALIAS,
+	CHANNEL_METERS_SOURCE,
+	parseChannelMeterLevels,
+} from './metering.js'
 
 export const UpgradeScripts: CompanionStaticUpgradeScript<X32Config>[] = [
 	EmptyUpgradeScript, // Previous version had a script
@@ -58,6 +64,7 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 	/** subscribe interval, we need to resubscribe atleast every 10 seconds to keep the subscription going
 	 * we are using 5 seconds to be safe */
 	private subscribeInterval: NodeJS.Timeout | undefined
+	private channelMeterSubscriptionActive = false
 
 	private readonly debounceUpdateCompanionBits: () => void
 	private readonly requestQueue: PQueue = new PQueue({
@@ -238,7 +245,15 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 		this.setVariableDefinitions(GetCompanionVariableDefinitions())
 		this.setVariableValues(GetCompanionVariableValues(this.x32State))
 
-		this.setFeedbackDefinitions(GetFeedbacksList(this, this.x32State, this.x32Subscriptions, this.queueEnsureLoaded))
+		this.setFeedbackDefinitions(
+			GetFeedbacksList(
+				this,
+				this.x32State,
+				this.x32Subscriptions,
+				this.queueEnsureLoaded,
+				this.updateChannelMeterSubscription,
+			),
+		)
 		this.setActionDefinitions(
 			GetActionsList({
 				transitions: this.transitions,
@@ -291,6 +306,7 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 
 	private setupOscSocket(): void {
 		this.updateStatus(InstanceStatus.Connecting)
+		this.channelMeterSubscriptionActive = false
 
 		if (this.reconnectTimer) {
 			clearTimeout(this.reconnectTimer)
@@ -323,6 +339,7 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 			this.updateStatus(InstanceStatus.ConnectionFailure, err.message)
 			this.requestQueue.clear()
 			this.inFlightRequests = {}
+			this.channelMeterSubscriptionActive = false
 
 			if (this.heartbeat) {
 				clearInterval(this.heartbeat)
@@ -351,6 +368,7 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 			this.heartbeat = setInterval(() => {
 				this.pulse()
 			}, 1500)
+			this.channelMeterSubscriptionActive = false
 
 			this.subscribeForUpdates()
 			this.subscribeInterval = setInterval(() => {
@@ -380,6 +398,7 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 		})
 
 		this.osc.on('close' as any, () => {
+			this.channelMeterSubscriptionActive = false
 			if (this.heartbeat !== undefined) {
 				clearInterval(this.heartbeat)
 				this.heartbeat = undefined
@@ -401,7 +420,15 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 				delete this.inFlightRequests[message.address]
 			}
 
-			this.triggerInvalidationsFromOsc(message)
+			if (message.address === CHANNEL_METERS_ALIAS) {
+				const levels = parseChannelMeterLevels(args)
+				if (levels) {
+					this.x32State.setChannelMeterLevels(levels)
+					this.checkFeedbacks('channel-clipping')
+				}
+			} else {
+				this.triggerInvalidationsFromOsc(message)
+			}
 
 			switch (message.address) {
 				case '/xinfo':
@@ -443,6 +470,43 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 			} catch (_e) {
 				// Ignore
 			}
+		}
+
+		this.updateChannelMeterSubscription()
+	}
+
+	private updateChannelMeterSubscription = (): void => {
+		if (!this.heartbeat || !this.osc) return
+
+		const shouldSubscribe = this.x32Subscriptions.getFeedbacks(CHANNEL_METERS_ALIAS).includes('channel-clipping')
+
+		try {
+			if (shouldSubscribe && !this.channelMeterSubscriptionActive) {
+				this.osc.send({
+					address: '/batchsubscribe',
+					args: [
+						{ type: 's', value: CHANNEL_METERS_ALIAS },
+						{ type: 's', value: CHANNEL_METERS_SOURCE },
+						{ type: 'i', value: 0 },
+						{ type: 'i', value: CHANNEL_METER_COUNT - 1 },
+						{ type: 'i', value: 1 },
+					],
+				})
+				this.channelMeterSubscriptionActive = true
+			} else if (shouldSubscribe) {
+				this.osc.send({
+					address: '/renew',
+					args: [{ type: 's', value: CHANNEL_METERS_ALIAS }],
+				})
+			} else if (this.channelMeterSubscriptionActive) {
+				this.osc.send({
+					address: '/unsubscribe',
+					args: [{ type: 's', value: CHANNEL_METERS_ALIAS }],
+				})
+				this.channelMeterSubscriptionActive = false
+			}
+		} catch (_e) {
+			this.channelMeterSubscriptionActive = false
 		}
 	}
 

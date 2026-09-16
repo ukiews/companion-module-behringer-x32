@@ -4,11 +4,15 @@ import { FeedbackId } from './feedback.js'
 export class X32State implements IStoredChannelSubject {
 	private readonly data: Map<string, osc.MetaArgument[]>
 	private readonly pressStorage: Map<string, number>
+	private readonly channelMeterLevels: number[]
+	private readonly feedbackLatchUntil: Map<string, number>
 	private storedChannel: number
 
 	constructor() {
 		this.data = new Map()
 		this.pressStorage = new Map()
+		this.channelMeterLevels = []
+		this.feedbackLatchUntil = new Map()
 		this.storedChannel = 1
 	}
 
@@ -48,6 +52,23 @@ export class X32State implements IStoredChannelSubject {
 		const val = this.pressStorage.get(path)
 		if (val !== undefined) this.pressStorage.delete(path)
 		return val
+	}
+
+	public setChannelMeterLevels(levels: number[]): void {
+		this.channelMeterLevels.splice(0, this.channelMeterLevels.length, ...levels)
+	}
+	public getChannelMeterLevel(channelIndex: number): number | undefined {
+		return this.channelMeterLevels[channelIndex]
+	}
+
+	public setFeedbackLatchUntil(feedbackId: string, timestamp: number): void {
+		this.feedbackLatchUntil.set(feedbackId, timestamp)
+	}
+	public getFeedbackLatchUntil(feedbackId: string): number | undefined {
+		return this.feedbackLatchUntil.get(feedbackId)
+	}
+	public clearFeedbackLatch(feedbackId: string): void {
+		this.feedbackLatchUntil.delete(feedbackId)
 	}
 
 	public setStoredChannel(channel: number): void {

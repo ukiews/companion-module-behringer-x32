@@ -30,6 +30,7 @@ import { compareNumber, floatToDB, InstanceBaseExt, padNumber, stringifyValueAlw
 import { UserRouteInPath, UserRouteOutPath, parseRefToPaths, ParseRefOptions } from './paths.js'
 import osc from 'osc'
 import { NumberComparitorPicker } from './input.js'
+import { CHANNEL_METERS_ALIAS } from './metering.js'
 import type { SetRequired } from 'type-fest'
 import {
 	CompanionBooleanFeedbackDefinition,
@@ -76,6 +77,14 @@ export type FeedbacksSchema = {
 			target: string
 			comparitor: string
 			fad: number
+		}
+	}
+	'channel-clipping': {
+		type: 'boolean'
+		options: {
+			channel: string
+			threshold: number
+			holdMs: number
 		}
 	}
 	level_channel_send: {
@@ -428,10 +437,13 @@ export function GetFeedbacksList(
 	state: X32State,
 	subs: X32Subscriptions,
 	ensureLoaded: (path: string) => void,
+	updateChannelMeterSubscription: () => void,
 ): CompanionFeedbackDefinitions<FeedbacksSchema> {
 	const levelsChoices = GetLevelsChoiceConfigs(state)
 	const panningChoices = GetPanningChoiceConfigs(state)
 	const muteGroups = GetMuteGroupChoices(state)
+	const channelMeterParseOptions: ParseRefOptions = { allowChannel: true }
+	const channelMeterChoices = GetTargetChoices(state, channelMeterParseOptions)
 	const selectChoicesParseOptions: ParseRefOptions = {
 		allowStereo: true,
 		allowMono: true,
@@ -704,6 +716,83 @@ export function GetFeedbacksList(
 					)
 				},
 			}),
+		},
+		'channel-clipping': {
+			type: 'boolean',
+			name: 'Channel clipping (peak hold)',
+			description: 'If the selected input channel reaches the clipping threshold, with a configurable peak hold',
+			options: [
+				{
+					type: 'dropdown',
+					label: 'Input channel',
+					id: 'channel',
+					...convertChoices(channelMeterChoices),
+					allowInvalidValues: true,
+				},
+				{
+					type: 'number',
+					label: 'Clipping threshold (dBFS; 0 is digital full scale)',
+					id: 'threshold',
+					default: 0,
+					step: 0.1,
+					min: -18,
+					max: 0,
+				},
+				{
+					type: 'number',
+					label: 'Peak hold (ms)',
+					id: 'holdMs',
+					default: 1000,
+					step: 100,
+					min: 0,
+					max: 60000,
+				},
+			],
+			defaultStyle: {
+				bgcolor: 0xff0000,
+				color: 0xffffff,
+			},
+			showInvert: false,
+			callback: (evt: CompanionFeedbackInfo): boolean => {
+				const subscriptionWasActive = subs.getFeedbacks(CHANNEL_METERS_ALIAS).includes('channel-clipping')
+				subs.subscribe(CHANNEL_METERS_ALIAS, evt.id, 'channel-clipping')
+				if (!subscriptionWasActive) updateChannelMeterSubscription()
+
+				if (
+					evt.previousOptions &&
+					(evt.previousOptions.channel !== evt.options.channel ||
+						evt.previousOptions.threshold !== evt.options.threshold ||
+						evt.previousOptions.holdMs !== evt.options.holdMs)
+				) {
+					state.clearFeedbackLatch(evt.id)
+				}
+
+				const channelRef = parseRefToPaths(evt.options.channel, channelMeterParseOptions)
+				const channelIndex = channelRef?.selectNumber
+				if (channelIndex === undefined || channelIndex < 0 || channelIndex >= 32) {
+					state.clearFeedbackLatch(evt.id)
+					return false
+				}
+
+				const thresholdDb = Math.min(0, Math.max(-60, getOptNumber(evt.options, 'threshold', 0)))
+				const thresholdLinear = 10 ** (thresholdDb / 20)
+				const holdMs = Math.min(60000, Math.max(0, getOptNumber(evt.options, 'holdMs', 1000)))
+				const currentLevel = state.getChannelMeterLevel(channelIndex)
+				const now = Date.now()
+
+				if (currentLevel !== undefined && currentLevel >= thresholdLinear) {
+					state.setFeedbackLatchUntil(evt.id, now + holdMs)
+				}
+
+				return (state.getFeedbackLatchUntil(evt.id) ?? 0) >= now
+			},
+			unsubscribe: (evt: CompanionFeedbackInfo): void => {
+				subs.unsubscribe(CHANNEL_METERS_ALIAS, evt.id)
+				state.clearFeedbackLatch(evt.id)
+				if (!subs.getFeedbacks(CHANNEL_METERS_ALIAS).includes('channel-clipping')) {
+					updateChannelMeterSubscription()
+				}
+			},
 		},
 		level_channel_send: {
 			type: 'boolean',
