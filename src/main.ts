@@ -388,6 +388,9 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 			this.inFlightRequests = {}
 
 			this.subscribeForUpdates()
+			// Re-evaluate placed clipping feedbacks after the OSC socket opens so their meter subscription is restored
+			// even if Companion loaded the feedback definitions before the connection was ready.
+			this.checkFeedbacks('channel-clipping')
 			this.subscribeInterval = setInterval(() => {
 				this.subscribeForUpdates()
 			}, 5000)
@@ -509,7 +512,9 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 		const shouldSubscribe = this.x32Subscriptions.getFeedbacks(CHANNEL_METERS_ALIAS).includes('channel-clipping')
 
 		try {
-			if (shouldSubscribe && !this.channelMeterSubscriptionActive) {
+			if (shouldSubscribe) {
+				// Re-send the complete subscription instead of renewing it blindly. The mixer does not acknowledge
+				// /batchsubscribe, so a lost initial packet would otherwise leave this flag true with no meter stream.
 				this.osc.send({
 					address: '/batchsubscribe',
 					args: [
@@ -521,11 +526,6 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 					],
 				})
 				this.channelMeterSubscriptionActive = true
-			} else if (shouldSubscribe) {
-				this.osc.send({
-					address: '/renew',
-					args: [{ type: 's', value: CHANNEL_METERS_ALIAS }],
-				})
 			} else if (this.channelMeterSubscriptionActive) {
 				this.osc.send({
 					address: '/unsubscribe',

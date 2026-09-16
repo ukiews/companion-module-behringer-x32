@@ -32,9 +32,10 @@ for additional actions please raise a feature request at [github](https://github
 If setting a fade duration, running another action for that value will cancel the first, and run the new one from the current level. If you wish to cancel a fade, run an 'Adjust fader level' with an offset of 0.
 
 The **Channel clipping (peak hold)** feedback evaluates only the input channels selected in configured feedbacks. It
-uses one low-bandwidth subscription limited to the 32 input-meter values, and only while at least one clipping
-feedback is active. The default clipping threshold is 0 dBFS and the default peak hold is 1000 ms; both values are
-configurable per feedback.
+uses one low-bandwidth meter subscription and evaluates its first 32 input-channel values, only while at least one
+clipping feedback is active. The default clipping threshold is 0 dBFS and the default peak hold is 1000 ms; both values
+are configurable per feedback. The meter subscription is automatically restored after reconnects or dropped
+subscription requests.
 
 Live physical headamp gain is available in dB through Companion variables for Local inputs 1-8. Variable names
 run from `headamp_local_01_gain` through `headamp_local_08_gain`. These variables represent physical preamps and
