@@ -14,7 +14,7 @@ While developing the module, by using `yarn dev` the compiler will be run in wat
 
 - Add relative input trim and headamp gain actions
 - Add opt-in per-channel clipping feedback with a configurable threshold and one-second default peak hold
-- Identify the custom Companion build as `4.0.4-incremental-gain.2`
+- Identify the custom Companion build as `4.0.4-vc.1`
 
 ### v4.0
 
