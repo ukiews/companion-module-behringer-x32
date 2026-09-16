@@ -2,7 +2,7 @@ import type { OSCMetaArgument, StringKeys } from '@companion-module/base'
 import { getStringArg } from './util.js'
 import type { X32State } from '../state.js'
 import { getColorChoiceFromId, GetNameFromState, GetTargetPaths } from '../choices.js'
-import { floatToDB } from '../util.js'
+import { floatToDB, floatToHeadampGain, padNumber } from '../util.js'
 import { VariablesSchema } from './schema.js'
 
 export type MyVariableDefinition<K extends keyof VariablesSchema> = {
@@ -187,6 +187,20 @@ for (const target of allSources) {
 				return isNaN(faderNum) ? undefined : floatToDB(faderNum)
 			},
 		}
+	}
+}
+
+for (let input = 1; input <= 8; input++) {
+	const variableId = `headamp_local_${padNumber(input)}_gain` as const
+	VariableDefinitions[variableId] = {
+		name: `Headamp gain: Local ${input}`,
+		oscPath: `/headamp/${padNumber(input - 1, 3)}/gain`,
+		getValue: (args) => {
+			const normalizedGain = args && args[0]?.type === 'f' ? args[0].value : NaN
+			if (isNaN(normalizedGain)) return undefined
+
+			return Math.round(floatToHeadampGain(normalizedGain) * 10) / 10
+		},
 	}
 }
 

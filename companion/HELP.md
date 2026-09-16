@@ -35,3 +35,7 @@ The **Channel clipping (peak hold)** feedback evaluates only the input channels 
 uses one low-bandwidth subscription limited to the 32 input-meter values, and only while at least one clipping
 feedback is active. The default clipping threshold is 0 dBFS and the default peak hold is 1000 ms; both values are
 configurable per feedback.
+
+Live physical headamp gain is available in dB through Companion variables for Local inputs 1-8. Variable names
+run from `headamp_local_01_gain` through `headamp_local_08_gain`. These variables represent physical preamps and
+do not automatically follow channel input routing.
