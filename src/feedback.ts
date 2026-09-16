@@ -433,7 +433,7 @@ function subscribeFeedback(
 }
 
 export function GetFeedbacksList(
-	_self: InstanceBaseExt,
+	self: InstanceBaseExt,
 	state: X32State,
 	subs: X32Subscriptions,
 	ensureLoaded: (path: string) => void,
@@ -758,15 +758,6 @@ export function GetFeedbacksList(
 				subs.subscribe(CHANNEL_METERS_ALIAS, evt.id, 'channel-clipping')
 				if (!subscriptionWasActive) updateChannelMeterSubscription()
 
-				if (
-					evt.previousOptions &&
-					(evt.previousOptions.channel !== evt.options.channel ||
-						evt.previousOptions.threshold !== evt.options.threshold ||
-						evt.previousOptions.holdMs !== evt.options.holdMs)
-				) {
-					state.clearFeedbackLatch(evt.id)
-				}
-
 				const channelRef = parseRefToPaths(evt.options.channel, channelMeterParseOptions)
 				const channelIndex = channelRef?.selectNumber
 				if (channelIndex === undefined || channelIndex < 0 || channelIndex >= 32) {
@@ -777,11 +768,13 @@ export function GetFeedbacksList(
 				const thresholdDb = Math.min(0, Math.max(-60, getOptNumber(evt.options, 'threshold', 0)))
 				const thresholdLinear = 10 ** (thresholdDb / 20)
 				const holdMs = Math.min(60000, Math.max(0, getOptNumber(evt.options, 'holdMs', 1000)))
+				state.configureFeedbackLatch(evt.id, `${channelIndex}:${thresholdDb}:${holdMs}`)
 				const currentLevel = state.getChannelMeterLevel(channelIndex)
 				const now = Date.now()
+				const latchJustExpired = state.consumeFeedbackLatchExpiration(evt.id)
 
-				if (currentLevel !== undefined && currentLevel >= thresholdLinear) {
-					state.setFeedbackLatchUntil(evt.id, now + holdMs)
+				if (!latchJustExpired && currentLevel !== undefined && currentLevel >= thresholdLinear) {
+					state.setFeedbackLatchUntil(evt.id, now + holdMs, () => self.checkFeedbacksById(evt.id))
 				}
 
 				return (state.getFeedbackLatchUntil(evt.id) ?? 0) >= now

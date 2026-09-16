@@ -6,6 +6,9 @@ export class X32State implements IStoredChannelSubject {
 	private readonly pressStorage: Map<string, number>
 	private readonly channelMeterLevels: number[]
 	private readonly feedbackLatchUntil: Map<string, number>
+	private readonly feedbackLatchConfig: Map<string, string>
+	private readonly feedbackLatchTimers: Map<string, NodeJS.Timeout>
+	private readonly feedbackLatchExpired: Set<string>
 	private storedChannel: number
 
 	constructor() {
@@ -13,6 +16,9 @@ export class X32State implements IStoredChannelSubject {
 		this.pressStorage = new Map()
 		this.channelMeterLevels = []
 		this.feedbackLatchUntil = new Map()
+		this.feedbackLatchConfig = new Map()
+		this.feedbackLatchTimers = new Map()
+		this.feedbackLatchExpired = new Set()
 		this.storedChannel = 1
 	}
 
@@ -61,14 +67,54 @@ export class X32State implements IStoredChannelSubject {
 		return this.channelMeterLevels[channelIndex]
 	}
 
-	public setFeedbackLatchUntil(feedbackId: string, timestamp: number): void {
+	public configureFeedbackLatch(feedbackId: string, config: string): void {
+		if (this.feedbackLatchConfig.get(feedbackId) === config) return
+
+		this.clearFeedbackLatchState(feedbackId)
+		this.feedbackLatchConfig.set(feedbackId, config)
+	}
+	public setFeedbackLatchUntil(feedbackId: string, timestamp: number, onExpired: () => void): void {
 		this.feedbackLatchUntil.set(feedbackId, timestamp)
+
+		const existingTimer = this.feedbackLatchTimers.get(feedbackId)
+		if (existingTimer) clearTimeout(existingTimer)
+
+		const timer = setTimeout(
+			() => {
+				this.feedbackLatchTimers.delete(feedbackId)
+				this.feedbackLatchUntil.delete(feedbackId)
+				this.feedbackLatchExpired.add(feedbackId)
+				onExpired()
+			},
+			Math.max(0, timestamp - Date.now()) + 1,
+		)
+		this.feedbackLatchTimers.set(feedbackId, timer)
 	}
 	public getFeedbackLatchUntil(feedbackId: string): number | undefined {
 		return this.feedbackLatchUntil.get(feedbackId)
 	}
+	public consumeFeedbackLatchExpiration(feedbackId: string): boolean {
+		const expired = this.feedbackLatchExpired.has(feedbackId)
+		this.feedbackLatchExpired.delete(feedbackId)
+		return expired
+	}
 	public clearFeedbackLatch(feedbackId: string): void {
+		this.clearFeedbackLatchState(feedbackId)
+		this.feedbackLatchConfig.delete(feedbackId)
+	}
+	public clearFeedbackLatches(): void {
+		for (const timer of this.feedbackLatchTimers.values()) clearTimeout(timer)
+		this.feedbackLatchTimers.clear()
+		this.feedbackLatchUntil.clear()
+		this.feedbackLatchConfig.clear()
+		this.feedbackLatchExpired.clear()
+	}
+	private clearFeedbackLatchState(feedbackId: string): void {
+		const timer = this.feedbackLatchTimers.get(feedbackId)
+		if (timer) clearTimeout(timer)
+		this.feedbackLatchTimers.delete(feedbackId)
 		this.feedbackLatchUntil.delete(feedbackId)
+		this.feedbackLatchExpired.delete(feedbackId)
 	}
 
 	public setStoredChannel(channel: number): void {

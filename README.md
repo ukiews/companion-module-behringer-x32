@@ -15,9 +15,10 @@ While developing the module, by using `yarn dev` the compiler will be run in wat
 - Add relative input trim and headamp gain actions
 - Add opt-in per-channel clipping feedback with a configurable threshold and one-second default peak hold
 - Make channel-meter subscriptions self-healing after dropped packets and reconnects
+- Keep clipping feedback active for the full configured peak-hold duration
 - Add live gain variables for the first 8 local physical headamps
 - Refresh Local 1-8 headamp gain variables every three seconds and after reconnects
-- Identify the custom Companion build as `4.0.4-vc.5`
+- Identify the custom Companion build as `4.0.4-vc.6`
 
 ### v4.0
 

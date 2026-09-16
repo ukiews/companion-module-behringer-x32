@@ -182,6 +182,7 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 	 */
 	public async configUpdated(config: X32Config): Promise<void> {
 		this.config = config
+		this.x32State.clearFeedbackLatches()
 		this.x32State.detach(this)
 		this.x32State = new X32State()
 		this.x32State.attach(this)
@@ -234,6 +235,7 @@ export default class X32Instance extends InstanceBase<X32Types> implements Insta
 		X32DeviceDetectorInstance.unsubscribe(this.id)
 
 		this.transitions.stopAll()
+		this.x32State.clearFeedbackLatches()
 		this.x32State.detach(this)
 
 		if (this.osc) {
