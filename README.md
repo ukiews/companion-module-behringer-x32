@@ -10,6 +10,10 @@ While developing the module, by using `yarn dev` the compiler will be run in wat
 
 ## Changes
 
+### Next
+
+- Add relative input trim and headamp gain actions
+
 ### v4.0
 
 - Update to 2.0 module api

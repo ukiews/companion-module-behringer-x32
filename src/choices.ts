@@ -176,6 +176,26 @@ export const HeadampGainChoice: CompanionInputFieldNumber<'gain'> = {
 	min: -12,
 	max: 60,
 }
+
+export const InputTrimDeltaChoice: CompanionInputFieldNumber<'delta'> = {
+	type: 'number',
+	label: 'Adjustment (dB; positive raises, negative lowers)',
+	id: 'delta',
+	default: 1,
+	step: 0.1,
+	min: -36,
+	max: 36,
+}
+
+export const HeadampGainDeltaChoice: CompanionInputFieldNumber<'delta'> = {
+	type: 'number',
+	label: 'Adjustment (dB; positive raises, negative lowers)',
+	id: 'delta',
+	default: 1,
+	step: 0.1,
+	min: -72,
+	max: 72,
+}
 export const MuteChoice: CompanionInputFieldDropdown<'mute'> = {
 	type: 'dropdown',
 	label: 'Mute / Unmute',
